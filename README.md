@@ -18,4 +18,11 @@ and `docs/DECISIONS.md` (how ambiguities were resolved).
 forge build
 forge test            # unit + fuzz + invariant tests
 ```
+## Website preview (`web/`)
+Next.js + PixiJS, unplugged (sample data, no wallet yet).
+```sh
+cd web && npm install && npm run dev
+```
+On Vercel: Project → Settings → Build and Deployment → **Root Directory = `web`**.
+
 Status: **not audited**. Do not deploy to mainnet without a professional audit.

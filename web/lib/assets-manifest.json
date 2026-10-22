@@ -1,0 +1,147 @@
+{
+  "note": "AI-generated concept art from Higgsfield (GPT Image 2.5). Download each URL into assets/raw/. Sprites have WHITE backgrounds: remove them (transparent PNG/WebP) before use. All share one isometric angle (camera front-left, ~30 deg).",
+  "style_reference": {
+    "description": "LOCKED STYLE: minimal, toy-like, cel-shaded isometric mobile-game art (Townscaper / Monument Valley / Clash of Clans). Pastel-bright flat colours, rounded chunky shapes, turquoise sea, pastel-green grass slab with sandy rim.",
+    "final_mockups": [
+      "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_105156_83dd60b3-ce55-4a0c-8766-f137813ca0be.png",
+      "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_105157_6cc63038-de11-4aaf-8705-c202c43fecf9.png"
+    ]
+  },
+  "base_map": {
+    "role": "Empty Italy island background (no buildings, no text). Image models bend coastlines: if the outline is off, rebuild the island shape from real geodata and only reuse colours/texture.",
+    "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_104109_f5795729-81f7-4cc8-9ced-c3eddab8b68e.png"
+  },
+  "districts_active": [
+    {
+      "token": "STOCKIFY",
+      "city": "Milano",
+      "colour": "gold",
+      "landmark": "Duomo spires",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_104110_5519d39c-15ac-422f-b088-02fe5ae3497a.png"
+    },
+    {
+      "token": "STONKEX",
+      "city": "Roma",
+      "colour": "orange",
+      "landmark": "Colosseum",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_104111_08bf1676-3cfc-44db-955b-741c057bb051.png"
+    },
+    {
+      "token": "DGUY",
+      "city": "Napoli",
+      "colour": "green",
+      "landmark": "Vesuvius + pizzeria",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_104111_898af96d-c036-4c16-808d-bd6fa47502ac.png"
+    },
+    {
+      "token": "TEMU",
+      "city": "Venezia",
+      "colour": "blue",
+      "landmark": "Campanile + gondola",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_104111_4e803a00-4017-455f-93a3-bc816de98332.png"
+    }
+  ],
+  "districts_future_expansion": [
+    {
+      "city": "Torino",
+      "landmark": "Mole Antonelliana",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_104112_89193b4a-7109-4f8c-80f5-b6ffbf44fef9.png"
+    },
+    {
+      "city": "Firenze",
+      "landmark": "Brunelleschi dome",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_104112_c64e7670-cb54-4783-b082-1cbbbb9cf4d3.png"
+    },
+    {
+      "city": "Sicilia",
+      "landmark": "Greek temple + Etna",
+      "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_104109_2c3e926c-2e6a-44a3-877f-d8cb8465e0ab.png"
+    }
+  ],
+  "house_sprite_sheet": {
+    "role": "3x2 grid: townhouse, small palazzo, villa with cypress, shop with awning, tower house, empty build plot with glowing outline and plus sign. Slice into separate sprites.",
+    "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_104109_ddba36d3-51ca-4c1d-b617-bdce9385600f.png"
+  },
+  "note_mockups": "The final mockups predate the Stockopolis alignment; banners show token + city but no 'THIS WEEK' tag. Style reference only.",
+  "building_styles": {
+    "note": "3 permanent styles per district (CapitaleNFT style 0/1/2). Generated with TRANSPARENT backgrounds (check edges; clean up if needed). Same isometric angle as everything else.",
+    "STOCKIFY_Milano": [
+      {
+        "style": 0,
+        "name": "Torre della Borsa",
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_111205_e50b8609-99bf-4d9f-8018-66bd0d626a11.png"
+      },
+      {
+        "style": 1,
+        "name": "Atelier",
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_111207_5cb8722d-afb1-479c-86ca-182ae0edb8c9.png"
+      },
+      {
+        "style": 2,
+        "name": "Bosco Verticale",
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_111207_ac89fe21-d6dc-44b7-803a-1d4a423e8f8a.png"
+      }
+    ],
+    "STONKEX_Roma": [
+      {
+        "style": 0,
+        "name": "Tempietto",
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_111208_70c8148d-12c8-431a-a0f7-078d7537e930.png"
+      },
+      {
+        "style": 1,
+        "name": "Villa Romana",
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_111206_8af89c2c-650a-444d-8699-18ed32f6e612.png"
+      },
+      {
+        "style": 2,
+        "name": "Fontana",
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_111204_c2aa2dbd-675c-4336-b3be-af6908c974d1.png"
+      }
+    ],
+    "DGUY_Napoli": [
+      {
+        "style": 0,
+        "name": "Pizzeria",
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_111204_f4380722-0897-4581-a9cd-4dd280f95dd9.png"
+      },
+      {
+        "style": 1,
+        "name": "Palazzo dei Quartieri",
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_111209_2a071a5b-07a8-4d17-b3c5-00b654903497.png"
+      },
+      {
+        "style": 2,
+        "name": "Teatro",
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_111205_7fd05e5f-c9bf-4a6b-a4aa-1ed375e85e71.png"
+      }
+    ],
+    "TEMU_Venezia": [
+      {
+        "style": 0,
+        "name": "Palazzo sul Canale",
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_111203_f4492522-c636-40bd-a840-ed8c98df4e2b.png"
+      },
+      {
+        "style": 1,
+        "name": "Fornace di Murano",
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_111206_60ae43cf-1383-433d-ba07-94251f169b6e.png"
+      },
+      {
+        "style": 2,
+        "name": "Bottega delle Maschere",
+        "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_111208_3af209fa-7964-4f9b-8596-e98a629b082e.png"
+      }
+    ]
+  },
+  "mayor_building": {
+    "id": 0,
+    "name": "Palazzo del Sindaco",
+    "role": "Building #0 at the map centre (Mayor). Transparent background.",
+    "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_111219_d9d00c87-0ce2-4301-a04a-2468fa1a698f.png"
+  },
+  "height_floor_kit": {
+    "role": "Procedural building height: ground floor + N stacked middle floors + roof, tinted per district colour. Floors = height level (L1..L5 and beyond). Slice the 3 pieces; check they align when stacked, regenerate if not.",
+    "url": "https://d8j0ntlcm91z4.cloudfront.net/user_3Gol6Q5crLnklfZmM3P5l0xp3ue/hf_20261022_111219_a23540ea-9731-4d07-aab6-0cc3c04f33f4.png"
+  }
+}

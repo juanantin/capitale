@@ -47,3 +47,24 @@ Change any of these by asking Claude; none is hard to revisit before deployment.
 ## Default parameters (to be resized once the real fee income is known)
 - Buy minimum 0.1 ETH, maximum 0.6 ETH per order, 10 min between orders,
   4% max deviation, 6h pause after a rejected order.
+
+## Confirmed by Juan (22 Oct 2026)
+- $CAPITALE is paired with **ETH** on Stonks Exchange (Stockopolis pairs with BNB); the
+  creator fee reaches the vault in ETH.
+- All four reward tokens trade on **Uniswap v4** on Base:
+  - STOCKIFY (STFY) `0xC6405D7a226e1C18E559Be2F335F74C01Ad07bF5`
+  - STONKEX `0x5ab000ff9B9FfE0349CE5ffA5fD86f217C3680F5`
+  - DGUY `0xe34356dcd3d7bb991248f322e4ec31b5d60bc54e`
+  - TEMU `0x3c573bdd88008c94f025e5023212f28e5f39744c`
+  (still to verify on Basescan in step 2: pools, fee tiers, liquidity)
+
+# Preview website (web/) decisions
+- Unplugged preview: all numbers are sample data (`web/lib/store.ts`); swapped for live
+  contract reads after the Base Sepolia deploy.
+- Italy is rebuilt from Natural Earth geodata (`web/scripts/build-italy.mjs`), not the
+  generated base map, so the coastline is exact.
+- Districts own the land closest to their city. Inside a district, plot 1 is next to the
+  city's landmark and plots grow outwards (the contract's plot number decides the spot).
+- Height: ground floor + one floor per level above 1 + the style's roof. No cap.
+- Art is drawn in code (vector shapes) until Juan's sprites are processed; Vercel runs
+  `scripts/fetch-assets.mjs` before each build to download, clean and use them.
