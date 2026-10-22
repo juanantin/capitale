@@ -1,0 +1,379 @@
+// SPDX-License-Identifier: MIT
+pragma solidity ^0.8.24;
+
+/*
+    CAPITALE — city-building token-reward game for a Stonks Exchange coin on Base.
+
+    Flow
+    1. $CAPITALE launches on Stonks Exchange; the creator fee is redirected to this contract.
+    2. Fees arrive (ETH or tokens). A keeper calls convertFees(), which splits them across
+       the district reward tokens by fixed weights (default STOCKIFY 35%, STONKEX 35%,
+       DGUY 15%, TEMU 15%), swaps each share and shares it equally among all buildings.
+    3. Anyone builds by burning $CAPITALE. The price is set in units of the paired asset
+       and converted to $CAPITALE through an oracle. Prices rise by tier; hard cap on buildings.
+    4. Each building is an ERC-721. Its owner claims accumulated reward tokens at any time.
+       Rewards follow the NFT if it is sold.
+    5. Referrals are cosmetic only (invite counter used by the front end for flags,
+       neon signs, fireworks). No profit sharing.
+
+    DRAFT — not audited. Test thoroughly on Base Sepolia before mainnet.
+*/
+
+import {ERC721} from "@openzeppelin/contracts/token/ERC721/ERC721.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
+import {Ownable2Step} from "@openzeppelin/contracts/access/Ownable2Step.sol";
+import {ReentrancyGuard} from "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
+
+interface IPriceOracle {
+    /// @return city tokens (18 decimals) equal to one whole unit (1e18) of the paired asset
+    function cityTokensPerPairedAsset() external view returns (uint256);
+}
+
+contract Capitale is ERC721, Ownable2Step, ReentrancyGuard {
+    using SafeERC20 for IERC20;
+
+    address public constant DEAD = 0x000000000000000000000000000000000000dEaD;
+    uint256 private constant ACC = 1e18;
+    uint256 public constant MAX_STREETS = 8;
+
+    IERC20 public immutable cityToken;
+    uint256 public immutable maxBuildings;
+    uint256 public immutable tierSize;
+
+    IPriceOracle public oracle;
+    address public keeper;
+    string private baseURI;
+
+    /// Building price per tier, in paired-rewardToken units (1e18 = one share).
+    uint256[] public tierPrices;
+
+    struct Street {
+        string name;
+        IERC20 token;
+        uint8 buildingTypes;
+        uint16 weightBps; // share of every fee conversion (all streets sum to 10_000)
+    }
+    Street[] public streets;
+    mapping(address => bool) public isRewardToken;
+    uint16 public constant MAX_WEIGHT_CHANGE_BPS = 2_000; // max 20 points per street per change
+
+    struct Building {
+        uint8 street;
+        uint8 kind;
+        uint32 invites;
+        uint64 builtAt;
+    }
+    mapping(uint256 => Building) public buildings;
+    uint256 public totalBuildings;
+
+    mapping(address => bool) public allowedRouters;
+
+    // Reward accounting (per reward token)
+    mapping(address => uint256) public accPerBuilding;
+    mapping(address => uint256) public reserved;
+    mapping(address => uint256) public totalDistributed;
+    mapping(uint256 => mapping(address => uint256)) public debt;
+
+    event Built(uint256 indexed id, address indexed owner, uint8 street, uint8 kind, uint256 tokensBurned);
+    event Invited(uint256 indexed inviterId, uint256 indexed newId, uint32 totalInvites);
+    event FeesConverted(address indexed tokenIn, uint256 amountIn, address indexed rewardToken, uint256 tokenOut);
+    event Distributed(address indexed rewardToken, uint256 amount, uint256 buildings);
+    event Claimed(address indexed owner, address indexed rewardToken, uint256 amount);
+    event WeightsSet(uint16[] weightsBps);
+    event StreetAdded(uint256 indexed index, string name, address rewardToken, uint8 buildingTypes);
+
+    error CityFull();
+    error BadStreet();
+    error BadKind();
+    error PriceAboveMax(uint256 price, uint256 maxTokens);
+    error NotOwnerOfBuilding(uint256 id);
+    error NotKeeper();
+    error RouterNotAllowed();
+    error ForbiddenToken();
+    error SwapFailed();
+    error InsufficientOutput(uint256 got, uint256 minOut);
+    error NoBuildings();
+    error BadConfig();
+    error BadWeights();
+
+    modifier onlyKeeper() {
+        if (msg.sender != keeper && msg.sender != owner()) revert NotKeeper();
+        _;
+    }
+
+    constructor(
+        string memory name_,
+        string memory symbol_,
+        IERC20 cityToken_,
+        uint256 maxBuildings_,
+        uint256 tierSize_,
+        uint256[] memory tierPrices_,
+        IPriceOracle oracle_,
+        address keeper_
+    ) ERC721(name_, symbol_) Ownable(msg.sender) {
+        if (address(cityToken_) == address(0) || maxBuildings_ == 0 || tierSize_ == 0 || tierPrices_.length == 0) {
+            revert BadConfig();
+        }
+        cityToken = cityToken_;
+        maxBuildings = maxBuildings_;
+        tierSize = tierSize_;
+        tierPrices = tierPrices_;
+        oracle = oracle_;
+        keeper = keeper_;
+    }
+
+    receive() external payable {}
+
+    // ─────────────────────────── Building ───────────────────────────
+
+    /// @notice Current building price in city tokens.
+    function currentPrice() public view returns (uint256) {
+        uint256 tier = totalBuildings / tierSize;
+        if (tier >= tierPrices.length) tier = tierPrices.length - 1;
+        return (tierPrices[tier] * oracle.cityTokensPerPairedAsset()) / 1e18;
+    }
+
+    /// @notice Buildings left before the price moves to the next tier.
+    function buildingsLeftInTier() external view returns (uint256) {
+        return tierSize - (totalBuildings % tierSize);
+    }
+
+    /// @param street     street index
+    /// @param kind       building type within the street (cosmetic)
+    /// @param inviterId  building id of the inviter, 0 for none (cosmetic only)
+    /// @param maxTokens  most city tokens the caller accepts to burn (slippage guard)
+    function build(uint8 street, uint8 kind, uint256 inviterId, uint256 maxTokens)
+        external
+        nonReentrant
+        returns (uint256 id)
+    {
+        if (totalBuildings >= maxBuildings) revert CityFull();
+        if (street >= streets.length) revert BadStreet();
+        if (kind >= streets[street].buildingTypes) revert BadKind();
+
+        uint256 price = currentPrice();
+        if (price > maxTokens) revert PriceAboveMax(price, maxTokens);
+
+        cityToken.safeTransferFrom(msg.sender, DEAD, price);
+
+        id = ++totalBuildings;
+        buildings[id] = Building({street: street, kind: kind, invites: 0, builtAt: uint64(block.timestamp)});
+
+        // New buildings only earn rewards distributed after they exist.
+        uint256 n = streets.length;
+        for (uint256 i; i < n; ++i) {
+            address s = address(streets[i].token);
+            debt[id][s] = accPerBuilding[s];
+        }
+
+        if (inviterId != 0 && inviterId < id && _ownerOf(inviterId) != msg.sender) {
+            uint32 inv = ++buildings[inviterId].invites;
+            emit Invited(inviterId, id, inv);
+        }
+
+        _safeMint(msg.sender, id);
+        emit Built(id, msg.sender, street, kind, price);
+    }
+
+    // ─────────────────────────── Fees → reward tokens ───────────────────────────
+
+    /// @notice Swap `amountIn` of fees held by the city (ETH = address(0), or any
+    ///         non-reward token) into ALL district reward tokens, split by their
+    ///         weights, then distribute each to all buildings.
+    /// @dev    swapData[i] / minOuts[i] are for street i. Each swap is limited to its
+    ///         share by the approval (or ETH value) given to the router, so the split
+    ///         is enforced on-chain whatever the calldata says.
+    function convertFees(
+        address tokenIn,
+        uint256 amountIn,
+        address router,
+        bytes[] calldata swapData,
+        uint256[] calldata minOuts
+    ) external onlyKeeper nonReentrant {
+        if (!allowedRouters[router]) revert RouterNotAllowed();
+        if (tokenIn == address(cityToken) || isRewardToken[tokenIn]) revert ForbiddenToken();
+        uint256 n = streets.length;
+        if (swapData.length != n || minOuts.length != n) revert BadConfig();
+        uint256 total;
+        for (uint256 i; i < n; ++i) total += streets[i].weightBps;
+        if (total != 10_000) revert BadWeights();
+
+        uint256 spent;
+        for (uint256 i; i < n; ++i) {
+            uint256 w = streets[i].weightBps;
+            if (w == 0) continue;
+            uint256 share = (i == _lastWeighted()) ? amountIn - spent : (amountIn * w) / 10_000;
+            spent += share;
+            _swapInto(tokenIn, share, router, swapData[i], streets[i].token, minOuts[i]);
+        }
+    }
+
+    function _swapInto(
+        address tokenIn,
+        uint256 amount,
+        address router,
+        bytes calldata data,
+        IERC20 out,
+        uint256 minOut
+    ) internal {
+        uint256 before = out.balanceOf(address(this));
+        bool ok;
+        if (tokenIn == address(0)) {
+            (ok,) = router.call{value: amount}(data);
+        } else {
+            IERC20(tokenIn).forceApprove(router, amount);
+            (ok,) = router.call(data);
+            IERC20(tokenIn).forceApprove(router, 0);
+        }
+        if (!ok) revert SwapFailed();
+        uint256 got = out.balanceOf(address(this)) - before;
+        if (got < minOut) revert InsufficientOutput(got, minOut);
+        emit FeesConverted(tokenIn, amount, address(out), got);
+        _distribute(address(out));
+    }
+
+    function _lastWeighted() internal view returns (uint256 last) {
+        uint256 n = streets.length;
+        for (uint256 i; i < n; ++i) if (streets[i].weightBps > 0) last = i;
+    }
+
+    /// @notice Share any undistributed balance of a reward token (e.g. fees that
+    ///         arrived already in reward-token form). Callable by anyone.
+    function distribute(address token) external nonReentrant {
+        if (!isRewardToken[token]) revert ForbiddenToken();
+        _distribute(token);
+    }
+
+    function _distribute(address rewardToken) internal {
+        uint256 n = totalBuildings;
+        if (n == 0) revert NoBuildings();
+        uint256 free = IERC20(rewardToken).balanceOf(address(this)) - reserved[rewardToken];
+        uint256 inc = (free * ACC) / n;
+        if (inc == 0) return;
+        uint256 used = (inc * n) / ACC;
+        accPerBuilding[rewardToken] += inc;
+        reserved[rewardToken] += used;
+        totalDistributed[rewardToken] += used;
+        emit Distributed(rewardToken, used, n);
+    }
+
+    // ─────────────────────────── Claims ───────────────────────────
+
+    function pending(uint256 id, address rewardToken) public view returns (uint256) {
+        return (accPerBuilding[rewardToken] - debt[id][rewardToken]) / ACC;
+    }
+
+    /// @notice Claim every reward token for the given buildings (caller must own them).
+    function claim(uint256[] calldata ids) external nonReentrant {
+        for (uint256 j; j < ids.length; ++j) {
+            if (ownerOf(ids[j]) != msg.sender) revert NotOwnerOfBuilding(ids[j]);
+        }
+        uint256 n = streets.length;
+        for (uint256 i; i < n; ++i) {
+            address s = address(streets[i].token);
+            uint256 acc = accPerBuilding[s];
+            uint256 total;
+            for (uint256 j; j < ids.length; ++j) {
+                uint256 owed = (acc - debt[ids[j]][s]) / ACC;
+                if (owed != 0) {
+                    debt[ids[j]][s] += owed * ACC; // keep sub-unit remainder
+                    total += owed;
+                }
+            }
+            if (total != 0) {
+                reserved[s] -= total;
+                IERC20(s).safeTransfer(msg.sender, total);
+                emit Claimed(msg.sender, s, total);
+            }
+        }
+    }
+
+    // ─────────────────────────── Admin ───────────────────────────
+
+    function addStreet(string calldata name_, IERC20 rewardToken, uint8 buildingTypes, uint16 weightBps) external onlyOwner {
+        if (streets.length >= MAX_STREETS || buildingTypes == 0) revert BadConfig();
+        address s = address(rewardToken);
+        if (s == address(0) || s == address(cityToken) || isRewardToken[s]) revert BadConfig();
+        isRewardToken[s] = true;
+        streets.push(Street({name: name_, token: rewardToken, buildingTypes: buildingTypes, weightBps: weightBps}));
+        emit StreetAdded(streets.length - 1, name_, s, buildingTypes);
+    }
+
+    /// @notice Change the reward split. Weights must sum to 10_000 and no street may
+    ///         move by more than MAX_WEIGHT_CHANGE_BPS per call, so holders are never
+    ///         surprised by a sudden 100% switch.
+    function setWeights(uint16[] calldata weightsBps) external onlyOwner {
+        uint256 n = streets.length;
+        if (weightsBps.length != n) revert BadWeights();
+        uint256 sum;
+        for (uint256 i; i < n; ++i) {
+            uint16 oldW = streets[i].weightBps;
+            uint16 newW = weightsBps[i];
+            uint16 diff = newW > oldW ? newW - oldW : oldW - newW;
+            if (diff > MAX_WEIGHT_CHANGE_BPS) revert BadWeights();
+            sum += newW;
+        }
+        if (sum != 10_000) revert BadWeights();
+        for (uint256 i; i < n; ++i) streets[i].weightBps = weightsBps[i];
+        emit WeightsSet(weightsBps);
+    }
+
+    /// @notice Current weights, in street order.
+    function weights() external view returns (uint16[] memory w) {
+        uint256 n = streets.length;
+        w = new uint16[](n);
+        for (uint256 i; i < n; ++i) w[i] = streets[i].weightBps;
+    }
+
+    function setRouter(address router, bool allowed) external onlyOwner {
+        allowedRouters[router] = allowed;
+    }
+
+    function setKeeper(address keeper_) external onlyOwner {
+        keeper = keeper_;
+    }
+
+    function setOracle(IPriceOracle oracle_) external onlyOwner {
+        oracle = oracle_;
+    }
+
+    function setBaseURI(string calldata uri) external onlyOwner {
+        baseURI = uri;
+    }
+
+    function streetCount() external view returns (uint256) {
+        return streets.length;
+    }
+
+    function _baseURI() internal view override returns (string memory) {
+        return baseURI;
+    }
+}
+
+/// @notice Minimal keeper-updated oracle for testing. Replace with a TWAP read from the
+///         Stonks Exchange pool before mainnet — a spot or manually set price can be gamed.
+contract ManualPriceOracle is IPriceOracle, Ownable {
+    uint256 public price;
+    uint256 public maxChangeBps = 2000; // max 20% move per update
+
+    event PriceSet(uint256 price);
+
+    constructor(uint256 initialPrice) Ownable(msg.sender) {
+        price = initialPrice;
+    }
+
+    function setPrice(uint256 newPrice) external onlyOwner {
+        uint256 p = price;
+        uint256 lo = (p * (10_000 - maxChangeBps)) / 10_000;
+        uint256 hi = (p * (10_000 + maxChangeBps)) / 10_000;
+        require(newPrice >= lo && newPrice <= hi, "move too large");
+        price = newPrice;
+        emit PriceSet(newPrice);
+    }
+
+    function cityTokensPerPairedAsset() external view returns (uint256) {
+        return price;
+    }
+}
