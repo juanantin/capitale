@@ -23,6 +23,7 @@ Next.js + PixiJS, unplugged (sample data, no wallet yet).
 ```sh
 cd web && npm install && npm run dev
 ```
-On Vercel: Project → Settings → Build and Deployment → **Root Directory = `web`**.
+On Vercel it deploys as-is: `vercel.json` builds `web/` and serves the static export (`web/out`).
+No Root Directory setting needed (setting it to `web` also works).
 
 Status: **not audited**. Do not deploy to mainnet without a professional audit.
