@@ -18,7 +18,11 @@ import {
   districtPalette,
 } from "./art";
 import { DISTRICTS, levelForUsd } from "./config";
-import { DISTRICT_PLACES, PLACES, PLOT_SPACING, Pt, RINGS, TILT, WORLD, onLand, plotPosition } from "./plots";
+import { BUILDING_SCALE, DISTRICT_PLACES, LANDMARK_SCALE, PLACES, PLOT_SPACING, Pt, RINGS, TILT, WORLD, onLand, plotPosition } from "./plots";
+
+/** Textures are baked at this resolution so they stay crisp when zoomed in. */
+const RES = 3;
+const K = 1 / RES;
 import { ui, type Building } from "./store";
 
 const SEA = 0x7fd6d0;
@@ -128,7 +132,7 @@ export class CityScene {
     const sea = new Container();
     this.world.addChild(sea, this.drawIsland(), this.ground, this.objects, this.fx, this.clouds);
     this.objects.sortableChildren = true;
-    this.ring.ellipse(0, 0, 17, 8.5).stroke({ width: 3, color: 0xffffff }).ellipse(0, 0, 13, 6.5).fill({ color: 0xffffff, alpha: 0.35 });
+    this.ring.ellipse(0, 0, 30, 15).stroke({ width: 4, color: 0xffffff }).ellipse(0, 0, 24, 12).fill({ color: 0xffffff, alpha: 0.35 });
     this.ring.visible = false;
     this.ground.addChild(this.ring);
     this.makeWaves(sea);
@@ -175,7 +179,7 @@ export class CityScene {
   private bakeTexture(draw: (g: Graphics) => void): Texture {
     const g = new Graphics();
     draw(g);
-    const t = this.app.renderer.generateTexture({ target: g, resolution: 2, antialias: true });
+    const t = this.app.renderer.generateTexture({ target: g, resolution: RES, antialias: true });
     g.destroy();
     return t;
   }
@@ -186,7 +190,7 @@ export class CityScene {
     const c = new Container();
     draw(c);
     const b = c.getLocalBounds();
-    const texture = this.app.renderer.generateTexture({ target: c, resolution: 2, antialias: true });
+    const texture = this.app.renderer.generateTexture({ target: c, resolution: RES, antialias: true });
     c.destroy({ children: true });
     const baked = { texture, ax: -b.x / b.width, ay: -b.y / b.height };
     this.baked.set(key, baked);
@@ -223,10 +227,13 @@ export class CityScene {
     });
   }
 
-  private place(baked: Baked, p: Pt): Sprite {
+  private base = new WeakMap<Sprite, number>();
+
+  private place(baked: Baked, p: Pt, mult = 1): Sprite {
     const s = new Sprite(baked.texture);
     s.anchor.set(baked.ax, baked.ay);
-    s.scale.set(0.5); // textures are baked at 2x resolution
+    s.scale.set(K * mult);
+    this.base.set(s, K * mult);
     s.position.set(p[0], p[1]);
     s.zIndex = p[1];
     this.objects.addChild(s);
@@ -254,11 +261,11 @@ export class CityScene {
     const plaza = new Graphics();
     DISTRICT_PLACES.forEach((k, i) => {
       const [x, y] = PLACES[k];
-      plaza.ellipse(x, y, 60, 60 * TILT).fill({ color: parseInt(DISTRICTS[i].light.slice(1), 16), alpha: 0.75 });
-      plaza.ellipse(x, y, 60, 60 * TILT).stroke({ width: 3, color: 0xffffff, alpha: 0.7 });
+      plaza.ellipse(x, y, 92, 92 * TILT).fill({ color: parseInt(DISTRICTS[i].light.slice(1), 16), alpha: 0.75 });
+      plaza.ellipse(x, y, 92, 92 * TILT).stroke({ width: 3, color: 0xffffff, alpha: 0.7 });
     });
     const [mx, my] = PLACES.mayor;
-    plaza.ellipse(mx, my, 66, 66 * TILT).fill({ color: 0xfde4ea, alpha: 0.85 }).stroke({ width: 3, color: 0xffffff });
+    plaza.ellipse(mx, my, 100, 100 * TILT).fill({ color: 0xfde4ea, alpha: 0.85 }).stroke({ width: 3, color: 0xffffff });
     c.addChild(plaza);
     return c;
   }
@@ -278,15 +285,15 @@ export class CityScene {
             draw(g);
             c.addChild(g);
           });
-      this.place(baked, p);
+      this.place(baked, p, LANDMARK_SCALE);
     };
     mk("duomo", drawDuomo, PLACES.milano, "landmark_0", 110);
     mk("colosseum", drawColosseum, PLACES.roma, "landmark_1", 110);
     const [vx, vy] = PLACES.napoli;
-    mk("vesuvius", drawVesuvius, [vx + 10, vy + 4], "landmark_2", 150);
+    mk("vesuvius", drawVesuvius, [vx + 14, vy + 8], "landmark_2", 150);
     mk("campanile", drawCampanile, PLACES.venezia, "landmark_3", 90);
     mk("mayor", drawMayor, PLACES.mayor, "mayor", 80);
-    if (!this.realTexture("landmark_2")) this.emitters.push({ p: [vx + 10, vy - 74], rate: 2.2, acc: 0, big: true });
+    if (!this.realTexture("landmark_2")) this.emitters.push({ p: [vx + 14, vy + 8 - 78 * LANDMARK_SCALE], rate: 2.2, acc: 0, big: true });
   }
 
   private makeTrees() {
@@ -297,17 +304,17 @@ export class CityScene {
     }));
     let seed = 7;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    const step = PLOT_SPACING * 1.6;
+    const step = PLOT_SPACING * 1.25;
     for (let y = 10; y < WORLD.height; y += step * TILT) {
       for (let x = 10; x < WORLD.width; x += step) {
         const p: Pt = [x + (rnd() - 0.5) * step * 0.8, y + (rnd() - 0.5) * step * 0.5];
         if (!onLand(p[0], p[1]) || !onLand(p[0] + 10, p[1]) || !onLand(p[0] - 10, p[1])) continue;
         if (rnd() < 0.35) continue;
         const near = [PLACES.mayor, ...DISTRICT_PLACES.map((k) => PLACES[k])].some(
-          (c) => Math.hypot(p[0] - c[0], (p[1] - c[1]) / TILT) < 75,
+          (c) => Math.hypot(p[0] - c[0], (p[1] - c[1]) / TILT) < 105,
         );
         if (near) continue;
-        const s = this.place(kinds[Math.floor(rnd() * 3)], p);
+        const s = this.place(kinds[Math.floor(rnd() * 3)], p, 1.6);
         const idx = this.trees.push({ s, p }) - 1;
         const key = `${Math.floor(p[0] / 40)},${Math.floor(p[1] / 40)}`;
         (this.treeGrid.get(key) ?? this.treeGrid.set(key, []).get(key)!).push(idx);
@@ -322,7 +329,7 @@ export class CityScene {
       for (let dy = -1; dy <= 1; dy++) {
         for (const i of this.treeGrid.get(`${gx + dx},${gy + dy}`) ?? []) {
           const t = this.trees[i];
-          if (t.s.visible && Math.hypot(t.p[0] - p[0], (t.p[1] - p[1]) / TILT) < 15) t.s.visible = false;
+          if (t.s.visible && Math.hypot(t.p[0] - p[0], (t.p[1] - p[1]) / TILT) < 24) t.s.visible = false;
         }
       }
     }
@@ -351,7 +358,7 @@ export class CityScene {
       if (!this.seaPoint(p, 28)) continue;
       const s = new Sprite(tex);
       s.anchor.set(0.5);
-      s.scale.set(0.5);
+      s.scale.set(K * 1.6);
       s.position.set(p[0], p[1]);
       s.alpha = 0;
       layer.addChild(s);
@@ -380,7 +387,7 @@ export class CityScene {
       });
       const s = new Sprite(tex.texture);
       s.anchor.set(tex.ax, tex.ay);
-      s.scale.set(0.5);
+      s.scale.set(K * 1.7);
       layer.addChild(s);
       this.boats.push({ s, c, r, a: Math.random() * Math.PI * 2, speed: (0.04 + Math.random() * 0.05) * (Math.random() < 0.5 ? -1 : 1), sq: TILT });
     }
@@ -396,7 +403,7 @@ export class CityScene {
       });
       const s = new Sprite(tex.texture);
       s.anchor.set(tex.ax, tex.ay);
-      s.scale.set(0.5);
+      s.scale.set(K * 1.7);
       layer.addChild(s);
       this.boats.push({ s, c, r: 22, a: 0, speed: 0.12, sq: TILT });
       break;
@@ -441,17 +448,18 @@ export class CityScene {
   private addBuilding(b: Building, animate: boolean) {
     const level = levelForUsd(b.claimedUsd);
     const p = plotPosition(b.district, b.plot);
-    const s = this.place(this.buildingTexture(b.district, b.style, level), p);
+    const s = this.place(this.buildingTexture(b.district, b.style, level), p, BUILDING_SCALE);
     this.sprites.set(b.id, s);
     this.levels.set(b.id, level);
     this.clearTreesAround(p);
-    if (b.district === 2 && b.style === 0 && this.emitters.length < 40) this.emitters.push({ p: [p[0] + 3, p[1] - 22], rate: 0.6, acc: Math.random(), big: false });
+    if (b.district === 2 && b.style === 0 && this.emitters.length < 40) this.emitters.push({ p: [p[0] + 3 * BUILDING_SCALE, p[1] - 22 * BUILDING_SCALE], rate: 0.6, acc: Math.random(), big: false });
     if (!animate || this.reducedMotion) return;
     s.scale.set(0);
-    this.tween(650, (t) => s.scale.set(0.5 * Math.max(0, easeOutBack(t))));
+    const k = this.base.get(s)!;
+    this.tween(650, (t) => s.scale.set(k * Math.max(0, easeOutBack(t))));
     for (let k = 0; k < 8; k++) {
       const a = (k / 8) * Math.PI * 2;
-      this.spawn(p[0], p[1], Math.cos(a) * 30, Math.sin(a) * 12 - 6, 0, 0.7, 0xf3e7c9, 0.35, 0.6);
+      this.spawn(p[0], p[1], Math.cos(a) * 50, Math.sin(a) * 20 - 8, 0, 0.7, 0xf3e7c9, 0.6, 1);
     }
   }
 
@@ -462,11 +470,12 @@ export class CityScene {
     s.texture = baked.texture;
     s.anchor.set(baked.ax, baked.ay);
     if (!animate || this.reducedMotion) return;
+    const k = this.base.get(s)!;
     this.tween(700, (t) => {
-      s.scale.set(0.5 * (1 + 0.12 * Math.sin(t * Math.PI) * (1 - t)), 0.5 * (0.75 + 0.25 * easeOutBack(t)));
+      s.scale.set(k * (1 + 0.12 * Math.sin(t * Math.PI) * (1 - t)), k * (0.75 + 0.25 * easeOutBack(t)));
     });
     for (let k = 0; k < 10; k++) {
-      this.spawn(s.x + (Math.random() - 0.5) * 22, s.y - 10 - Math.random() * 30, (Math.random() - 0.5) * 20, -30 - Math.random() * 30, 0, 1, 0xfff07a, 0.25, 0, this.star);
+      this.spawn(s.x + (Math.random() - 0.5) * 40, s.y - 20 - Math.random() * 50, (Math.random() - 0.5) * 30, -45 - Math.random() * 40, 0, 1, 0xfff07a, 0.45, 0, this.star);
     }
   }
 
@@ -480,7 +489,7 @@ export class CityScene {
           drawEmptyPlot(g, parseInt(DISTRICTS[d].colour.slice(1), 16));
           c.addChild(g);
         });
-        const s = this.place(baked, [0, 0]);
+        const s = this.place(baked, [0, 0], BUILDING_SCALE);
         s.zIndex = -1;
         this.markers.push(s);
       }
@@ -499,7 +508,7 @@ export class CityScene {
     for (let k = 0; k < 22; k++) {
       const a = (k / 22) * Math.PI * 2;
       const v = 40 + Math.random() * 20;
-      this.spawn(s.x, top, Math.cos(a) * v, Math.sin(a) * v, 30, 1.1, colours[k % colours.length], 0.22, 0);
+      this.spawn(s.x, top, Math.cos(a) * v * 1.6, Math.sin(a) * v * 1.6, 45, 1.2, colours[k % colours.length], 0.36, 0);
     }
   }
 
@@ -564,7 +573,8 @@ export class CityScene {
       const x = b.c[0] + Math.cos(b.a) * b.r;
       const y = b.c[1] + Math.sin(b.a) * b.r * b.sq;
       const dir = -Math.sin(b.a) * b.speed;
-      b.s.scale.x = dir >= 0 ? 0.5 : -0.5;
+      b.s.scale.x = (dir >= 0 ? 1 : -1) * K * 1.7;
+      b.s.scale.y = K * 1.7;
       b.s.position.set(x, y + Math.sin(time * 2 + b.r) * 1.2);
       b.s.rotation = Math.sin(time * 1.6 + b.r) * 0.04;
     }
@@ -595,20 +605,32 @@ export class CityScene {
   private viewport() {
     const w = this.el.clientWidth;
     const h = this.el.clientHeight;
-    const top = w < 420 ? 165 : 175;
-    const bottom = w >= 900 ? 100 : 80;
+    const top = w >= 900 ? 120 : w < 420 ? 160 : 170;
+    const bottom = w >= 900 ? 96 : 76;
     return { w, h, top, bottom, cx: w >= 900 && ui.panelOpen ? (w - 450) / 2 : w / 2 };
   }
 
 
+  private landBounds() {
+    let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
+    for (const r of RINGS) for (const [x, y] of r) {
+      x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
+    }
+    return { x0, y0: y0 - 60, x1, y1: y1 + 20 }; // room for the northern banners and the cliff
+  }
+
+  fitScale = 0.2;
+
+  /** Zoom so the whole island fills the free part of the screen. */
   fit() {
     const { w, h, top, bottom } = this.viewport();
-    const portrait = h > w;
-    const s = Math.min(w / (WORLD.width * (portrait ? 0.94 : 1.05)), (h - top - bottom) / (WORLD.height * 1.02));
+    const b = this.landBounds();
+    const bw = b.x1 - b.x0;
+    const bh = b.y1 - b.y0;
+    const s = Math.min((w - 16) / bw, (h - top - bottom) / bh);
+    this.fitScale = s;
     this.world.scale.set(s);
-    // On portrait screens crop a little of Sardinia's west coast rather than shrinking Italy.
-    const x = (w - WORLD.width * s) / 2 + (portrait ? WORLD.width * s * 0.03 : 0);
-    this.world.position.set(x, top + (h - top - bottom - WORLD.height * s) / 2);
+    this.world.position.set((w - bw * s) / 2 - b.x0 * s, top + (h - top - bottom - bh * s) / 2 - b.y0 * s);
     this.cb.onCamera();
   }
 
@@ -621,7 +643,7 @@ export class CityScene {
   }
 
   private zoomAt(sx: number, sy: number, next: number) {
-    const s = Math.max(0.12, Math.min(4, next));
+    const s = Math.max(this.fitScale * 0.8, Math.min(this.fitScale * 12, next));
     const k = s / this.world.scale.x;
     this.world.position.set(sx - (sx - this.world.x) * k, sy - (sy - this.world.y) * k);
     this.world.scale.set(s);

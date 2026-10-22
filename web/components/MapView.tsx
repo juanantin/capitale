@@ -22,7 +22,7 @@ export default function MapView() {
       const el = banners.current[i];
       if (!el) return;
       const [x, y] = sc.worldToScreen(PLACES[k]);
-      const lift = k === "napoli" ? 110 : k === "venezia" ? 120 : 80;
+      const lift = k === "napoli" ? 200 : k === "venezia" ? 230 : k === "mayor" ? 150 : 140;
       const s = Math.max(0.55, Math.min(1.15, sc.scale * 2.4));
       el.style.transform = `translate(${x}px, ${y - lift * sc.scale}px) translate(-50%, -100%) scale(${s})`;
     });
