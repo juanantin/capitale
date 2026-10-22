@@ -5,10 +5,10 @@
 import italy from "./italy.json";
 
 export const TILT = 0.78; // vertical squash that gives the map its isometric look
-export const PLOT_SPACING = 24;
+export const PLOT_SPACING = 40;
 /** How much bigger than their drawn size buildings appear on the map. */
-export const BUILDING_SCALE = 1.7;
-export const LANDMARK_SCALE = 2.1;
+export const BUILDING_SCALE = 5.1;
+export const LANDMARK_SCALE = 4.2;
 
 export type Pt = [number, number];
 export const WORLD = { width: italy.width, height: italy.height * TILT };
@@ -47,8 +47,8 @@ export function getPlots(): Pt[][] {
   if (cache) return cache;
   const cities = DISTRICT_PLACES.map((k) => PLACES[k]);
   const reserved: [Pt, number][] = [
-    [PLACES.mayor, 105],
-    ...cities.map((c) => [c, 95] as [Pt, number]),
+    [PLACES.mayor, 165],
+    ...cities.map((c) => [c, 160] as [Pt, number]),
   ];
   const sx = PLOT_SPACING;
   const sy = PLOT_SPACING * TILT * 0.87;
@@ -59,7 +59,7 @@ export function getPlots(): Pt[][] {
   let row = 0;
   for (let y = sy + oy; y < WORLD.height; y += sy, row++) {
     for (let x = (row % 2) * (sx / 2) + ox; x < WORLD.width; x += sx) {
-      if (!wellInland(x, y, 14)) continue;
+      if (!wellInland(x, y, 22)) continue;
       if (reserved.some(([c, r]) => Math.hypot(x - c[0], (y - c[1]) / TILT) < r)) continue;
       let best = 0;
       let bestD = Infinity;

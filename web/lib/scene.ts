@@ -132,7 +132,7 @@ export class CityScene {
     const sea = new Container();
     this.world.addChild(sea, this.drawIsland(), this.ground, this.objects, this.fx, this.clouds);
     this.objects.sortableChildren = true;
-    this.ring.ellipse(0, 0, 30, 15).stroke({ width: 4, color: 0xffffff }).ellipse(0, 0, 24, 12).fill({ color: 0xffffff, alpha: 0.35 });
+    this.ring.ellipse(0, 0, 80, 40).stroke({ width: 8, color: 0xffffff }).ellipse(0, 0, 66, 33).fill({ color: 0xffffff, alpha: 0.35 });
     this.ring.visible = false;
     this.ground.addChild(this.ring);
     this.makeWaves(sea);
@@ -261,11 +261,11 @@ export class CityScene {
     const plaza = new Graphics();
     DISTRICT_PLACES.forEach((k, i) => {
       const [x, y] = PLACES[k];
-      plaza.ellipse(x, y, 92, 92 * TILT).fill({ color: parseInt(DISTRICTS[i].light.slice(1), 16), alpha: 0.75 });
-      plaza.ellipse(x, y, 92, 92 * TILT).stroke({ width: 3, color: 0xffffff, alpha: 0.7 });
+      plaza.ellipse(x, y, 150, 150 * TILT).fill({ color: parseInt(DISTRICTS[i].light.slice(1), 16), alpha: 0.75 });
+      plaza.ellipse(x, y, 150, 150 * TILT).stroke({ width: 3, color: 0xffffff, alpha: 0.7 });
     });
     const [mx, my] = PLACES.mayor;
-    plaza.ellipse(mx, my, 100, 100 * TILT).fill({ color: 0xfde4ea, alpha: 0.85 }).stroke({ width: 3, color: 0xffffff });
+    plaza.ellipse(mx, my, 150, 150 * TILT).fill({ color: 0xfde4ea, alpha: 0.85 }).stroke({ width: 3, color: 0xffffff });
     c.addChild(plaza);
     return c;
   }
@@ -290,10 +290,10 @@ export class CityScene {
     mk("duomo", drawDuomo, PLACES.milano, "landmark_0", 110);
     mk("colosseum", drawColosseum, PLACES.roma, "landmark_1", 110);
     const [vx, vy] = PLACES.napoli;
-    mk("vesuvius", drawVesuvius, [vx + 14, vy + 8], "landmark_2", 150);
+    mk("vesuvius", drawVesuvius, [vx + 30, vy + 20], "landmark_2", 150);
     mk("campanile", drawCampanile, PLACES.venezia, "landmark_3", 90);
     mk("mayor", drawMayor, PLACES.mayor, "mayor", 80);
-    if (!this.realTexture("landmark_2")) this.emitters.push({ p: [vx + 14, vy + 8 - 78 * LANDMARK_SCALE], rate: 2.2, acc: 0, big: true });
+    if (!this.realTexture("landmark_2")) this.emitters.push({ p: [vx + 30, vy + 20 - 78 * LANDMARK_SCALE], rate: 2.2, acc: 0, big: true });
   }
 
   private makeTrees() {
@@ -304,17 +304,17 @@ export class CityScene {
     }));
     let seed = 7;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    const step = PLOT_SPACING * 1.25;
+    const step = PLOT_SPACING * 1.1;
     for (let y = 10; y < WORLD.height; y += step * TILT) {
       for (let x = 10; x < WORLD.width; x += step) {
         const p: Pt = [x + (rnd() - 0.5) * step * 0.8, y + (rnd() - 0.5) * step * 0.5];
-        if (!onLand(p[0], p[1]) || !onLand(p[0] + 10, p[1]) || !onLand(p[0] - 10, p[1])) continue;
+        if (!onLand(p[0], p[1]) || !onLand(p[0] + 20, p[1]) || !onLand(p[0] - 20, p[1])) continue;
         if (rnd() < 0.35) continue;
         const near = [PLACES.mayor, ...DISTRICT_PLACES.map((k) => PLACES[k])].some(
-          (c) => Math.hypot(p[0] - c[0], (p[1] - c[1]) / TILT) < 105,
+          (c) => Math.hypot(p[0] - c[0], (p[1] - c[1]) / TILT) < 195,
         );
         if (near) continue;
-        const s = this.place(kinds[Math.floor(rnd() * 3)], p, 1.6);
+        const s = this.place(kinds[Math.floor(rnd() * 3)], p, 3.2);
         const idx = this.trees.push({ s, p }) - 1;
         const key = `${Math.floor(p[0] / 40)},${Math.floor(p[1] / 40)}`;
         (this.treeGrid.get(key) ?? this.treeGrid.set(key, []).get(key)!).push(idx);
@@ -329,7 +329,7 @@ export class CityScene {
       for (let dy = -1; dy <= 1; dy++) {
         for (const i of this.treeGrid.get(`${gx + dx},${gy + dy}`) ?? []) {
           const t = this.trees[i];
-          if (t.s.visible && Math.hypot(t.p[0] - p[0], (t.p[1] - p[1]) / TILT) < 24) t.s.visible = false;
+          if (t.s.visible && Math.hypot(t.p[0] - p[0], (t.p[1] - p[1]) / TILT) < 42) t.s.visible = false;
         }
       }
     }
@@ -358,7 +358,7 @@ export class CityScene {
       if (!this.seaPoint(p, 28)) continue;
       const s = new Sprite(tex);
       s.anchor.set(0.5);
-      s.scale.set(K * 1.6);
+      s.scale.set(K * 3);
       s.position.set(p[0], p[1]);
       s.alpha = 0;
       layer.addChild(s);
@@ -371,14 +371,14 @@ export class CityScene {
     const orbitOk = (c: Pt, r: number) => {
       for (let k = 0; k < 24; k++) {
         const a = (k / 24) * Math.PI * 2;
-        if (!this.seaPoint([c[0] + Math.cos(a) * r, c[1] + Math.sin(a) * r * TILT], 30)) return false;
+        if (!this.seaPoint([c[0] + Math.cos(a) * r, c[1] + Math.sin(a) * r * TILT], 45)) return false;
       }
       return true;
     };
     let tries = 0;
     while (this.boats.length < 8 && tries++ < 4000) {
       const c: Pt = [Math.random() * WORLD.width, Math.random() * WORLD.height];
-      const r = 60 + Math.random() * 140;
+      const r = 90 + Math.random() * 160;
       if (!orbitOk(c, r)) continue;
       const tex = this.bake(`boat${this.boats.length % sails.length}`, (cc) => {
         const g = new Graphics();
@@ -387,7 +387,7 @@ export class CityScene {
       });
       const s = new Sprite(tex.texture);
       s.anchor.set(tex.ax, tex.ay);
-      s.scale.set(K * 1.7);
+      s.scale.set(K * 3.2);
       layer.addChild(s);
       this.boats.push({ s, c, r, a: Math.random() * Math.PI * 2, speed: (0.04 + Math.random() * 0.05) * (Math.random() < 0.5 ? -1 : 1), sq: TILT });
     }
@@ -395,7 +395,7 @@ export class CityScene {
     const v = PLACES.venezia;
     for (let k = 0; k < 400; k++) {
       const c: Pt = [v[0] + 20 + Math.random() * 90, v[1] - 40 + Math.random() * 90];
-      if (!orbitOk(c, 22)) continue;
+      if (!orbitOk(c, 30)) continue;
       const tex = this.bake("gondola", (cc) => {
         const g = new Graphics();
         drawGondola(g);
@@ -403,9 +403,9 @@ export class CityScene {
       });
       const s = new Sprite(tex.texture);
       s.anchor.set(tex.ax, tex.ay);
-      s.scale.set(K * 1.7);
+      s.scale.set(K * 3.2);
       layer.addChild(s);
-      this.boats.push({ s, c, r: 22, a: 0, speed: 0.12, sq: TILT });
+      this.boats.push({ s, c, r: 30, a: 0, speed: 0.12, sq: TILT });
       break;
     }
   }
@@ -459,7 +459,7 @@ export class CityScene {
     this.tween(650, (t) => s.scale.set(k * Math.max(0, easeOutBack(t))));
     for (let k = 0; k < 8; k++) {
       const a = (k / 8) * Math.PI * 2;
-      this.spawn(p[0], p[1], Math.cos(a) * 50, Math.sin(a) * 20 - 8, 0, 0.7, 0xf3e7c9, 0.6, 1);
+      this.spawn(p[0], p[1], Math.cos(a) * 120, Math.sin(a) * 50 - 20, 0, 0.8, 0xf3e7c9, 1.5, 2.5);
     }
   }
 
@@ -475,7 +475,7 @@ export class CityScene {
       s.scale.set(k * (1 + 0.12 * Math.sin(t * Math.PI) * (1 - t)), k * (0.75 + 0.25 * easeOutBack(t)));
     });
     for (let k = 0; k < 10; k++) {
-      this.spawn(s.x + (Math.random() - 0.5) * 40, s.y - 20 - Math.random() * 50, (Math.random() - 0.5) * 30, -45 - Math.random() * 40, 0, 1, 0xfff07a, 0.45, 0, this.star);
+      this.spawn(s.x + (Math.random() - 0.5) * 100, s.y - 50 - Math.random() * 130, (Math.random() - 0.5) * 70, -100 - Math.random() * 80, 0, 1.1, 0xfff07a, 1.2, 0, this.star);
     }
   }
 
@@ -508,7 +508,7 @@ export class CityScene {
     for (let k = 0; k < 22; k++) {
       const a = (k / 22) * Math.PI * 2;
       const v = 40 + Math.random() * 20;
-      this.spawn(s.x, top, Math.cos(a) * v * 1.6, Math.sin(a) * v * 1.6, 45, 1.2, colours[k % colours.length], 0.36, 0);
+      this.spawn(s.x, top, Math.cos(a) * v * 3.5, Math.sin(a) * v * 3.5, 100, 1.3, colours[k % colours.length], 0.8, 0);
     }
   }
 
@@ -573,8 +573,8 @@ export class CityScene {
       const x = b.c[0] + Math.cos(b.a) * b.r;
       const y = b.c[1] + Math.sin(b.a) * b.r * b.sq;
       const dir = -Math.sin(b.a) * b.speed;
-      b.s.scale.x = (dir >= 0 ? 1 : -1) * K * 1.7;
-      b.s.scale.y = K * 1.7;
+      b.s.scale.x = (dir >= 0 ? 1 : -1) * K * 3.2;
+      b.s.scale.y = K * 3.2;
       b.s.position.set(x, y + Math.sin(time * 2 + b.r) * 1.2);
       b.s.rotation = Math.sin(time * 1.6 + b.r) * 0.04;
     }
@@ -587,7 +587,7 @@ export class CityScene {
       e.acc += dt * e.rate;
       while (e.acc >= 1) {
         e.acc -= 1;
-        this.spawn(e.p[0] + (Math.random() - 0.5) * 4, e.p[1], (Math.random() - 0.2) * 6, e.big ? -14 : -9, 0, e.big ? 4 : 2.2, e.big ? 0xe9e4df : 0xf4f1ee, e.big ? 0.7 : 0.25, e.big ? 0.35 : 0.18);
+        this.spawn(e.p[0] + (Math.random() - 0.5) * 4, e.p[1], (Math.random() - 0.2) * 6, e.big ? -40 : -25, 0, e.big ? 4.5 : 2.4, e.big ? 0xe9e4df : 0xf4f1ee, e.big ? 2 : 0.7, e.big ? 1 : 0.5);
       }
     }
     this.fireworkAcc += dt;
@@ -605,7 +605,7 @@ export class CityScene {
   private viewport() {
     const w = this.el.clientWidth;
     const h = this.el.clientHeight;
-    const top = w >= 900 ? 120 : w < 420 ? 160 : 170;
+    const top = w >= 900 ? 165 : w < 420 ? 160 : 170;
     const bottom = w >= 900 ? 96 : 76;
     return { w, h, top, bottom, cx: w >= 900 && ui.panelOpen ? (w - 450) / 2 : w / 2 };
   }
@@ -616,7 +616,7 @@ export class CityScene {
     for (const r of RINGS) for (const [x, y] of r) {
       x0 = Math.min(x0, x); y0 = Math.min(y0, y); x1 = Math.max(x1, x); y1 = Math.max(y1, y);
     }
-    return { x0, y0: y0 - 60, x1, y1: y1 + 20 }; // room for the northern banners and the cliff
+    return { x0, y0: y0 - 160, x1, y1: y1 + 30 }; // room for the northern banners and the cliff
   }
 
   fitScale = 0.2;
@@ -669,7 +669,7 @@ export class CityScene {
     if (s) this.ring.position.set(s.x, s.y);
   }
 
-  flyTo(id: number, scale = 2.2) {
+  flyTo(id: number, scale = 0.9) {
     const s = this.sprites.get(id);
     if (!s) return;
     const { h, top, bottom, cx } = this.viewport();

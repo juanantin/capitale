@@ -29,7 +29,7 @@ const out = {
   height: HEIGHT,
   rings,
   places: {
-    mayor: city(12.45, 42.85),
+    mayor: city(11.55, 43.55),
     milano: city(9.19, 45.46),
     roma: city(12.5, 41.9),
     napoli: city(14.27, 40.85),
