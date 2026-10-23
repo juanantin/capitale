@@ -13,6 +13,7 @@ import {
   drawGondola,
   drawMayor,
   drawTree,
+  drawCottage,
   drawVesuvius,
   floorsForLevel,
   districtPalette,
@@ -296,40 +297,46 @@ export class CityScene {
     if (!this.realTexture("landmark_2")) this.emitters.push({ p: [vx + 30, vy + 20 - 78 * LANDMARK_SCALE], rate: 2.2, acc: 0, big: true });
   }
 
+  /** Fill every empty bit of land with countryside: cottages, cypresses and olive trees.
+   *  Scenery makes way wherever a real building is placed. */
   private makeTrees() {
     const kinds = [0, 1, 2].map((k) => this.bake(`tree${k}`, (c) => {
       const g = new Graphics();
       drawTree(g, k);
       c.addChild(g);
     }));
+    const cottages = [0, 1, 2].map((k) => this.bake(`cottage${k}`, (c) => {
+      const g = new Graphics();
+      drawCottage(g, k);
+      c.addChild(g);
+    }));
     let seed = 7;
     const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
-    const step = PLOT_SPACING * 1.1;
-    for (let y = 10; y < WORLD.height; y += step * TILT) {
-      for (let x = 10; x < WORLD.width; x += step) {
-        const p: Pt = [x + (rnd() - 0.5) * step * 0.8, y + (rnd() - 0.5) * step * 0.5];
-        if (!onLand(p[0], p[1]) || !onLand(p[0] + 20, p[1]) || !onLand(p[0] - 20, p[1])) continue;
-        if (rnd() < 0.35) continue;
-        const near = [PLACES.mayor, ...DISTRICT_PLACES.map((k) => PLACES[k])].some(
-          (c) => Math.hypot(p[0] - c[0], (p[1] - c[1]) / TILT) < 195,
-        );
-        if (near) continue;
-        const s = this.place(kinds[Math.floor(rnd() * 3)], p, 3.2);
+    const step = PLOT_SPACING * 0.62;
+    const plazas = [PLACES.mayor, ...DISTRICT_PLACES.map((k) => PLACES[k])];
+    for (let y = 10, row = 0; y < WORLD.height; y += step * TILT * 0.9, row++) {
+      for (let x = 10 + (row % 2) * step * 0.5; x < WORLD.width; x += step) {
+        const p: Pt = [x + (rnd() - 0.5) * step * 0.6, y + (rnd() - 0.5) * step * 0.4];
+        if (!onLand(p[0], p[1]) || !onLand(p[0] + 12, p[1]) || !onLand(p[0] - 12, p[1])) continue;
+        if (plazas.some((c) => Math.hypot(p[0] - c[0], (p[1] - c[1]) / TILT) < 150)) continue;
+        const r = rnd();
+        const baked = r < 0.42 ? cottages[Math.floor(rnd() * 3)] : kinds[Math.floor(rnd() * 3)];
+        const s = this.place(baked, p, r < 0.42 ? 3 : 2.6 + rnd() * 0.8);
         const idx = this.trees.push({ s, p }) - 1;
-        const key = `${Math.floor(p[0] / 40)},${Math.floor(p[1] / 40)}`;
+        const key = `${Math.floor(p[0] / 60)},${Math.floor(p[1] / 60)}`;
         (this.treeGrid.get(key) ?? this.treeGrid.set(key, []).get(key)!).push(idx);
       }
     }
   }
 
   private clearTreesAround(p: Pt) {
-    const gx = Math.floor(p[0] / 40);
-    const gy = Math.floor(p[1] / 40);
+    const gx = Math.floor(p[0] / 60);
+    const gy = Math.floor(p[1] / 60);
     for (let dx = -1; dx <= 1; dx++) {
       for (let dy = -1; dy <= 1; dy++) {
         for (const i of this.treeGrid.get(`${gx + dx},${gy + dy}`) ?? []) {
           const t = this.trees[i];
-          if (t.s.visible && Math.hypot(t.p[0] - p[0], (t.p[1] - p[1]) / TILT) < 42) t.s.visible = false;
+          if (t.s.visible && Math.hypot(t.p[0] - p[0], (t.p[1] - p[1]) / TILT) < 46) t.s.visible = false;
         }
       }
     }

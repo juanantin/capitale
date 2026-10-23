@@ -306,3 +306,27 @@ export function drawEmptyPlot(g: Graphics, color: number) {
   g.moveTo(-3, 0).lineTo(3, 0).stroke({ width: 1.6, color: 0xffffff });
   g.moveTo(0, -1.8).lineTo(0, 1.8).stroke({ width: 1.6, color: 0xffffff });
 }
+
+/** Countryside scenery: a small cream house with a terracotta roof (not an NFT). */
+export function drawCottage(g: Graphics, variant: number) {
+  const walls = [0xfff3d6, 0xf7e2c0, 0xffe9d6][variant % 3];
+  const p: Palette = {
+    wall: walls,
+    lit: walls,
+    shade: mix(walls, 0xc9a77a, 0.45),
+    top: walls,
+    roof: 0xe07a5f,
+    roofShade: 0xb85a43,
+    window: 0x8fb8c9,
+  };
+  const a = 7;
+  const h = variant === 2 ? 12 : 7;
+  shadow(g, a);
+  box(g, a, 0, h, p, false);
+  // a door and a window on the lit side
+  g.poly([-a + 2, 1, -a + 4, 2, -a + 4, -2.5, -a + 2, -3.5]).fill(0x8a6a4f);
+  g.poly([-2.5, 2.2, -1, 2.9, -1, 0.2 - h / 2, -2.5, -0.5 - h / 2]).fill(p.window);
+  const apex = -h - 7;
+  g.poly([-a - 1, -h, 0, -h + a / 2 + 1, 0, apex]).fill(p.roof).stroke(OUTLINE);
+  g.poly([0, -h + a / 2 + 1, a + 1, -h, 0, apex]).fill(p.roofShade).stroke(OUTLINE);
+}
