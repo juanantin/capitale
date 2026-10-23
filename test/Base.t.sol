@@ -70,6 +70,7 @@ abstract contract BaseTest is Test {
             ICapitaleNFTView(address(nft)),
             pricing.earlyBirdEnd(),
             toks,
+            [ISwapAdapter(address(adapter)), adapter, adapter, adapter],
             ICapitaleOracle(address(oracle)),
             opsSafe,
             IWETH(address(0)),
@@ -79,9 +80,6 @@ abstract contract BaseTest is Test {
         nft.setVault(ICapitaleVault(address(vault)));
         vm.startPrank(admin);
         pricing.setNft(address(nft));
-        for (uint8 i; i < 4; ++i) {
-            vault.setAdapter(i, ISwapAdapter(address(adapter)));
-        }
         vm.stopPrank();
     }
 

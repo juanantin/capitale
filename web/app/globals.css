@@ -959,3 +959,100 @@ button {
     transition: none !important;
   }
 }
+
+/* ─────────── testnet ─────────── */
+
+.btn.wallet.on {
+  background: #e6f8ee;
+  color: var(--ok);
+}
+
+.stat.mode .seg {
+  display: flex;
+  gap: 2px;
+  margin-top: 2px;
+  padding: 2px;
+  background: #f1ebe1;
+  border-radius: 10px;
+}
+
+.seg button {
+  padding: 2px 8px;
+  font-size: 13px;
+  font-weight: 600;
+  background: none;
+  border: 0;
+  border-radius: 8px;
+}
+
+.seg button.on {
+  background: var(--ink);
+  color: #fff;
+}
+
+.steps {
+  margin: 10px 0;
+  padding-left: 4px;
+  list-style: none;
+  font-size: 14px;
+}
+
+.steps li {
+  padding: 2px 0;
+  color: var(--muted);
+}
+
+.steps li.done {
+  color: var(--ok);
+}
+
+.steps li.now {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.addr {
+  margin: 6px 0;
+  font-size: 14px;
+}
+
+.addr a,
+.tab a {
+  color: #2a93bd;
+}
+
+.lab-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 10px;
+}
+
+.lab-actions .row {
+  flex-wrap: nowrap;
+}
+
+.input.narrow {
+  width: 110px;
+  flex: none;
+}
+
+.ok-box,
+.err-box {
+  margin: 10px 0 !important;
+  padding: 8px 10px;
+  font-size: 13.5px;
+  border: 2px solid;
+  border-radius: 12px;
+  word-break: break-word;
+}
+
+.ok-box {
+  color: var(--ok);
+  background: #e6f8ee;
+}
+
+.err-box {
+  color: var(--warn);
+  background: #fdeaea;
+}

@@ -143,7 +143,15 @@ export class CityScene {
     this.makeClouds();
     this.fit();
     this.bindInput();
-    this.app.ticker.add((t) => this.update(t.deltaMS / 1000));
+    this.app.ticker.add((t) => {
+      try {
+        this.update(t.deltaMS / 1000);
+      } catch (e) {
+        // Never let one bad frame freeze the map: drop running animations and carry on.
+        this.tweens = [];
+        console.error(e);
+      }
+    });
   }
 
   destroy() {
@@ -434,6 +442,19 @@ export class CityScene {
   }
 
   // ─────────── buildings ───────────
+
+  /** Remove every building (e.g. when switching between sample data and a test city). */
+  reset() {
+    // Stop running pop-in / level-up animations before their sprites go away.
+    this.tweens = this.camTween ? [this.camTween] : [];
+    for (const s of this.sprites.values()) s.destroy();
+    this.sprites.clear();
+    this.levels.clear();
+    this.buildingsById.clear();
+    this.emitters = this.emitters.filter((e) => e.big);
+    for (const t of this.trees) t.s.visible = true;
+    this.select(null);
+  }
 
   /** Bring the map in line with the building list. New ids pop in when `animate` is true. */
   sync(buildings: Building[], animate: boolean) {

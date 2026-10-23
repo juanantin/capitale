@@ -34,7 +34,49 @@ export interface Purchase {
   usd: number;
 }
 
+export type Mode = "preview" | "testnet";
+
+/** Live data only available when connected to a deployed test city. */
+export interface ChainInfo {
+  vault: `0x${string}`;
+  nft: `0x${string}`;
+  pricing: `0x${string}`;
+  capitale: `0x${string}`;
+  oracle: `0x${string}`;
+  adapter: `0x${string}`;
+  tokens: `0x${string}`[];
+  ethBalance: number;
+  vaultEth: number;
+  allowance: bigint;
+  capitaleWei: bigint;
+  quote: { id: number; usd: number; tokens: number; tokensWei: bigint } | null;
+  quoteError: string | null;
+  isEarlyBird: boolean;
+  earlyBirdEnd: number;
+  earlyBirdFinalized: boolean;
+  pausedUntil: number;
+  lastBuyAt: number;
+  schedulerActive: boolean;
+  minOrderEth: number;
+  maxOrderEth: number;
+  minInterval: number;
+  oracleOwner: string;
+  adapterQuality: number;
+  blockTime: number;
+}
+
+export interface ChainActions {
+  approve: () => Promise<void>;
+  build: (district: DistrictId, style: 0 | 1 | 2, inviter: number, maxTokensWei: bigint) => Promise<number | null>;
+  claim: (ids: number[]) => Promise<void>;
+  vote: (ids: number[], token: DistrictId) => Promise<void>;
+}
+
 export interface CityState {
+  mode: Mode;
+  /** The player: "you" in preview, the connected wallet address on testnet. */
+  me: string;
+  chain: ChainInfo | null;
   buildings: Building[];
   districtCount: [number, number, number, number];
   week: number;
@@ -132,6 +174,9 @@ function makeInitial(): CityState {
     purchases.push({ at: now - k * 3600 - Math.floor(r() * 1800), token: 1, eth, tokens: 0, usd: eth * 3000 });
   }
   return {
+    mode: "preview",
+    me: YOU,
+    chain: null,
     buildings,
     districtCount,
     week: 0,
@@ -192,6 +237,32 @@ export function getCity(): CityState {
   return get();
 }
 
+let previewState: CityState | null = null;
+let chainActions: ChainActions | null = null;
+
+export function registerChain(actions: ChainActions) {
+  chainActions = actions;
+}
+
+/** Switch between sample data and a deployed test city (whose state chain.ts then pushes in). */
+export function setMode(mode: Mode) {
+  const s = get();
+  if (s.mode === mode) return;
+  if (mode === "testnet") {
+    previewState = s;
+    state = { ...s, mode, live: false, chain: null, buildings: [], districtCount: [0, 0, 0, 0], purchases: [], me: "" };
+  } else {
+    state = previewState ?? makeInitial();
+  }
+  listeners.forEach((l) => l());
+}
+
+/** Replace the city with state read from the chain (testnet mode only). */
+export function setChainState(next: Partial<CityState>) {
+  if (get().mode !== "testnet") return;
+  set(next);
+}
+
 export function onCityEvent(l: (e: CityEvent) => void): () => void {
   eventListeners.add(l);
   return () => eventListeners.delete(l);
@@ -201,13 +272,25 @@ export function onCityEvent(l: (e: CityEvent) => void): () => void {
 
 export function quoteBuild(): { id: number; usd: number; tokens: number } {
   const s = get();
+  if (s.mode === "testnet") {
+    const q = s.chain?.quote;
+    return q ? { id: q.id, usd: q.usd, tokens: q.tokens } : { id: s.buildings.length + 1, usd: 0, tokens: 0 };
+  }
   const id = s.buildings.length + 1;
   const usd = usdForBuilding(id, false);
   return { id, usd, tokens: Math.ceil(usd / s.capitaleUsd) };
 }
 
-export function approve() {
+export async function approve() {
+  if (get().mode === "testnet") return chainActions?.approve();
   set({ approved: true });
+}
+
+/** Build for the player. Returns the new building number. */
+export async function buildMine(district: DistrictId, style: 0 | 1 | 2, inviter: number, maxTokensWei: bigint): Promise<number | null> {
+  const s = get();
+  if (s.mode === "testnet") return chainActions ? chainActions.build(district, style, inviter, maxTokensWei) : null;
+  return build(s.me, district, style, inviter)?.id ?? null;
 }
 
 export function build(owner: string, district: DistrictId, style: 0 | 1 | 2, inviter: number): Building | null {
@@ -253,7 +336,8 @@ export function build(owner: string, district: DistrictId, style: 0 | 1 | 2, inv
   return b;
 }
 
-export function claim(ids: number[]) {
+export async function claim(ids: number[]) {
+  if (get().mode === "testnet") return chainActions?.claim(ids);
   const s = get();
   const buildings = [...s.buildings];
   for (const id of ids) {
@@ -267,7 +351,8 @@ export function claim(ids: number[]) {
   set({ buildings });
 }
 
-export function vote(ids: number[], token: DistrictId) {
+export async function vote(ids: number[], token: DistrictId) {
+  if (get().mode === "testnet") return chainActions?.vote(ids, token);
   const s = get();
   const buildings = [...s.buildings];
   const votes = [...s.votes] as CityState["votes"];
@@ -291,6 +376,7 @@ export function setLive(live: boolean) {
 /** Settles the week in the preview when the countdown reaches zero. */
 export function settleIfDue(now: number) {
   const s = get();
+  if (s.mode !== "preview") return;
   if (now < s.weekEnd) return;
   let best = 0;
   let idx = s.currentToken;
@@ -314,7 +400,7 @@ export function settleIfDue(now: number) {
 /** Preview life: other residents keep building, buys happen, rewards accrue, some level up. */
 export function tick() {
   const s = get();
-  if (!s.live) return;
+  if (s.mode !== "preview" || !s.live) return;
   const r = Math.random();
   if (r < 0.45 && s.buildings.length < MAX_BUILDINGS) {
     const d = Math.floor(Math.random() * 4) as DistrictId;
@@ -323,7 +409,7 @@ export function tick() {
   } else if (r < 0.75) {
     // Another owner claims and grows a floor.
     const pick = s.buildings[Math.floor(Math.random() * s.buildings.length)];
-    if (pick && pick.owner !== YOU) {
+    if (pick && pick.owner !== s.me) {
       const buildings = [...s.buildings];
       const from = levelForUsd(pick.claimedUsd);
       const nb = { ...pick, claimedUsd: Math.max(pick.claimedUsd, [5, 20, 50, 100][from - 1] ?? pick.claimedUsd + 50) };

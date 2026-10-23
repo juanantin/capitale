@@ -1,12 +1,17 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { useAccount } from "wagmi";
 import MapView from "./MapView";
+import Providers from "./Providers";
+import TestLab from "./TestLab";
+import WalletButton from "./WalletButton";
+import { connectCity, savedCity } from "../lib/chain";
 import Logo from "./Logo";
 import WhitePaper from "./WhitePaper";
 import { BuildTab, MyPalazzoTab, RankingsTab, SindacoTab, TownHallTab, TreasuryTab } from "./Panels";
 import { DISTRICTS, MAX_BUILDINGS } from "../lib/config";
-import { setLive, settleIfDue, tick, ui, useCity } from "../lib/store";
+import { setLive, setMode, settleIfDue, tick, ui, useCity } from "../lib/store";
 
 const TABS = [
   { key: "build", label: "Build", icon: "🏗️" },
@@ -16,15 +21,40 @@ const TABS = [
   { key: "treasury", label: "Treasury", icon: "💰" },
   { key: "paper", label: "White Paper", icon: "📜" },
   { key: "sindaco", label: "Il Sindaco", icon: "🎩" },
+  { key: "lab", label: "Test lab", icon: "🧪" },
 ] as const;
 type TabKey = (typeof TABS)[number]["key"];
 
 export default function App() {
+  return (
+    <Providers>
+      <Game />
+    </Providers>
+  );
+}
+
+/** Keeps the store in step with the wallet and the loaded test city. */
+function ChainSync() {
+  const city = useCity();
+  const { address } = useAccount();
+  useEffect(() => {
+    if (city.mode !== "testnet") {
+      connectCity(null, null);
+      return;
+    }
+    connectCity(savedCity(), address ?? null).catch(() => {});
+  }, [city.mode, address]);
+  return null;
+}
+
+function Game() {
   const city = useCity();
   const [tab, setTab] = useState<TabKey | null>(null);
   const [copied, setCopied] = useState(false);
 
   useEffect(() => {
+    // A shared test-city link (?city=0x…) opens straight into testnet mode.
+    if (new URLSearchParams(window.location.search).get("city")) setMode("testnet");
     const a = setInterval(tick, 3200);
     const b = setInterval(() => settleIfDue(Math.floor(Date.now() / 1000)), 1000);
     return () => {
@@ -39,6 +69,7 @@ export default function App() {
 
   return (
     <main className="app">
+      <ChainSync />
       <MapView />
 
       <header className="top">
@@ -51,7 +82,7 @@ export default function App() {
         </div>
         <div className="top-right">
           <Logo />
-          <button className="btn wallet" disabled title="Preview mode">Connect wallet</button>
+          <WalletButton />
         </div>
       </header>
 
@@ -60,9 +91,18 @@ export default function App() {
         <div className="stat"><span>City tax</span><b>{city.totalTaxEth.toFixed(2)} <small>ETH</small></b></div>
         <div className="stat"><span>Purchases</span><b>{city.totalPurchases}</b></div>
         <div className="stat" style={{ ["--c" as string]: D.colour }}><span>This week</span><b className="week-token">{D.token}</b></div>
-        <button className={`stat live ${city.live ? "on" : ""}`} onClick={() => setLive(!city.live)} title="Simulated activity in the preview">
-          <span>Preview</span><b>{city.live ? "● Live" : "❚❚ Paused"}</b>
-        </button>
+        <div className="stat mode">
+          <span>Mode</span>
+          <div className="seg">
+            <button className={city.mode === "preview" ? "on" : ""} onClick={() => setMode("preview")}>Preview</button>
+            <button className={city.mode === "testnet" ? "on" : ""} onClick={() => { setMode("testnet"); if (!savedCity()) setTab("lab"); }}>Testnet</button>
+          </div>
+        </div>
+        {city.mode === "preview" && (
+          <button className={`stat live ${city.live ? "on" : ""}`} onClick={() => setLive(!city.live)} title="Simulated activity in the preview">
+            <span>Sample data</span><b>{city.live ? "● Live" : "❚❚ Paused"}</b>
+          </button>
+        )}
       </section>
 
       <section className={`sheet ${tab ? "open" : ""}`} aria-hidden={!tab}>
@@ -80,6 +120,7 @@ export default function App() {
               {tab === "treasury" && <TreasuryTab />}
               {tab === "paper" && <WhitePaper />}
               {tab === "sindaco" && <SindacoTab />}
+              {tab === "lab" && <TestLab />}
             </div>
           </>
         )}

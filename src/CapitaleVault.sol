@@ -172,6 +172,7 @@ contract CapitaleVault is ICapitaleVault, Ownable2Step, ReentrancyGuard {
         ICapitaleNFTView nft_,
         uint256 earlyBirdEnd_,
         IERC20[4] memory tokens_,
+        ISwapAdapter[4] memory adapters_,
         ICapitaleOracle oracle_,
         address ops_,
         IWETH weth_,
@@ -190,6 +191,7 @@ contract CapitaleVault is ICapitaleVault, Ownable2Step, ReentrancyGuard {
             }
             tokens[i] = tokens_[i];
             tokenDecimals[i] = IERC20Metadata(address(tokens_[i])).decimals();
+            adapters[i] = adapters_[i];
         }
         oracle = oracle_;
         ops = ops_;

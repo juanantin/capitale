@@ -68,3 +68,13 @@ Change any of these by asking Claude; none is hard to revisit before deployment.
 - Height: ground floor + one floor per level above 1 + the style's roof. No cap.
 - Art is drawn in code (vector shapes) until Juan's sprites are processed; Vercel runs
   `scripts/fetch-assets.mjs` before each build to download, clean and use them.
+
+# Testnet (Base Sepolia)
+- `src/testnet/TestKit.sol` (testnet only, never mainnet): free test $CAPITALE (`faucet()`),
+  four test reward tokens, a hand-set price feed and a swap that fills at that price
+  (with a "bad fill" switch to exercise the 4% rejection and 6h pause).
+- The website's 🧪 Test lab deploys a whole city from the user's own wallet (6 confirmations):
+  no private keys anywhere. The city is remembered by its vault address (`?city=0x…`).
+- Test buy rules: min 0.001 ETH, max 0.01 ETH per order (real values come later).
+- Early bird can be shortened for a test (10 min / 1 h / 6 h) by starting the sale earlier.
+- The vault now takes its four swap routes in the constructor (no setAdapter calls at deploy).

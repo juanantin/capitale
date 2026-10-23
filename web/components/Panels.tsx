@@ -3,7 +3,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { DISTRICTS, DistrictId, EARLY_BIRD_UNITS, MAX_BUILDINGS, TIERS, levelForUsd, usdForNextLevel } from "../lib/config";
 import { formatCountdown } from "../lib/romeTime";
-import { YOU, approve, build, claim, focus, quoteBuild, useCity, vote } from "../lib/store";
+import { approve, buildMine, claim, focus, getCity, quoteBuild, useCity, vote } from "../lib/store";
+import { describeError, testActions } from "../lib/chain";
 
 const fmt = (n: number, d = 0) => n.toLocaleString("en-US", { maximumFractionDigits: d, minimumFractionDigits: d });
 const usd = (n: number) => `$${fmt(n, n < 100 ? 2 : 0)}`;
@@ -28,16 +29,26 @@ function romeTime(unix: number) {
   });
 }
 
-function useFakeTx(): [string | null, (label: string, fn: () => void) => void] {
+/** Runs an action: a real wallet transaction on testnet, a short fake delay in preview. */
+function useTx(): [string | null, (label: string, fn: () => unknown) => void, string | null] {
   const [pending, setPending] = useState<string | null>(null);
-  const run = (label: string, fn: () => void) => {
+  const [error, setError] = useState<string | null>(null);
+  const run = (label: string, fn: () => unknown) => {
     setPending(label);
-    setTimeout(() => {
-      fn();
-      setPending(null);
-    }, 1100);
+    setError(null);
+    const preview = getCity().mode === "preview";
+    (async () => {
+      if (preview) await new Promise((r) => setTimeout(r, 1100));
+      await fn();
+    })()
+      .catch((e) => setError(describeError(e)))
+      .finally(() => setPending(null));
   };
-  return [pending, run];
+  return [pending, run, error];
+}
+
+function TxError({ error }: { error: string | null }) {
+  return error ? <p className="err-box">{error}</p> : null;
 }
 
 // ─────────── Build ───────────
@@ -47,10 +58,14 @@ export function BuildTab() {
   const [district, setDistrict] = useState<DistrictId | null>(null);
   const [style, setStyle] = useState<0 | 1 | 2 | null>(null);
   const [inviter, setInviter] = useState("");
-  const [pending, run] = useFakeTx();
+  const [pending, run, error] = useTx();
   const [done, setDone] = useState<number | null>(null);
   const q = quoteBuild();
   const maxBurn = Math.ceil(q.tokens * 1.02);
+  const testnet = city.mode === "testnet";
+  const maxBurnWei = testnet && city.chain?.quote ? (city.chain.quote.tokensWei * 102n) / 100n : BigInt(maxBurn) * 10n ** 18n;
+  const unavailable = testnet ? (!city.chain ? "Load a test city in the Test lab first." : city.chain.quoteError) : null;
+  const short = testnet && !!city.chain?.quote && city.chain.capitaleWei < city.chain.quote.tokensWei;
   const full = city.buildings.length >= MAX_BUILDINGS;
   const invNum = parseInt(inviter, 10);
   const invOk = !inviter || (invNum > 0 && invNum < q.id);
@@ -126,20 +141,23 @@ export function BuildTab() {
             <button className="btn" disabled={city.approved || !!pending} onClick={() => run("approve", approve)}>
               {city.approved ? "✓ Approved" : pending === "approve" ? "Confirm in wallet…" : "Approve $CAPITALE"}
             </button>
-            <button className="btn primary" disabled={!city.approved || !invOk || full || !!pending} onClick={() => run("build", () => {
-              const b = build(YOU, district, style, invNum || 0);
-              if (b) {
-                setDone(b.id);
-                setTimeout(() => focus(b.id), 50);
+            <button className="btn primary" disabled={!city.approved || !invOk || full || !!pending || !!unavailable || short} onClick={() => run("build", async () => {
+              const id = await buildMine(district, style, invNum || 0, maxBurnWei);
+              if (id) {
+                setDone(id);
+                setTimeout(() => focus(id), 600);
               }
             })}>
               {pending === "build" ? "Building…" : `Build (max ${fmt(maxBurn)})`}
             </button>
           </div>
           <p className="muted small">Approve once. The build reverts if the burn would be above your max (quote + 2%). Tokens go to the burn address.</p>
+          {unavailable && <p className="warn small">{unavailable}</p>}
+          {short && <p className="warn small">Not enough test $CAPITALE: get some in the 🧪 Test lab.</p>}
+          <TxError error={error} />
         </>
       )}
-      <p className="preview-note">Preview mode: no wallet, nothing is sent on-chain.</p>
+      {!testnet && <p className="preview-note">Preview mode: no wallet, nothing is sent on-chain.</p>}
     </div>
   );
 }
@@ -161,8 +179,8 @@ function StyleIcon({ district, style }: { district: number; style: number }) {
 
 export function MyPalazzoTab() {
   const city = useCity();
-  const mine = useMemo(() => city.buildings.filter((b) => b.owner === YOU), [city.buildings]);
-  const [pending, run] = useFakeTx();
+  const mine = useMemo(() => city.buildings.filter((b) => b.owner === city.me), [city.buildings, city.me]);
+  const [pending, run, error] = useTx();
   const totalPending = mine.reduce((s, b) => s + b.pendingUsd, 0);
   const unvoted = mine.filter((b) => b.votedWeek !== city.week).length;
 
@@ -192,7 +210,16 @@ export function MyPalazzoTab() {
       <button className="btn primary wide" disabled={totalPending <= 0 || !!pending} onClick={() => run("all", () => claim(mine.map((b) => b.id)))}>
         {pending === "all" ? "Claiming…" : `Claim all (${usd(totalPending)})`}
       </button>
+      {city.chain && ((!city.chain.isEarlyBird && !city.chain.earlyBirdFinalized) || city.chain.blockTime >= city.weekEnd) && (
+        <div className="ok-box">
+          Rewards are waiting to be paid out (early bird ended or the week closed).{" "}
+          <button className="btn small" disabled={!!pending} onClick={() => run("settle", () => testActions.settle())}>
+            {pending === "settle" ? "…" : "Settle now"}
+          </button>
+        </div>
+      )}
       <p className="muted small">One claim pays all four tokens. Claiming is what makes your building taller.</p>
+      <TxError error={error} />
       <div className="list">
         {mine.map((b) => {
           const D = DISTRICTS[b.district];
@@ -231,11 +258,11 @@ export function MyPalazzoTab() {
 export function TownHallTab() {
   const city = useCity();
   const now = useNow();
-  const [pending, run] = useFakeTx();
+  const [pending, run, error] = useTx();
   const total = city.votes.reduce((a, b) => a + b, 0);
   const max = Math.max(...city.votes);
   const leaders = city.votes.filter((v) => v === max && v > 0).length;
-  const mineUnvoted = city.buildings.filter((b) => b.owner === YOU && b.votedWeek !== city.week).map((b) => b.id);
+  const mineUnvoted = city.buildings.filter((b) => b.owner === city.me && b.votedWeek !== city.week).map((b) => b.id);
   return (
     <div className="tab">
       <div className="countdown">
@@ -263,6 +290,7 @@ export function TownHallTab() {
           );
         })}
       </div>
+      <TxError error={error} />
       <p className="muted small">The Mayor&apos;s building does not vote. A building that already voted this week can&apos;t vote again after being sold, until next week.</p>
     </div>
   );

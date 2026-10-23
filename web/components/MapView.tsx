@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { CityScene } from "../lib/scene";
 import { DISTRICTS, levelForUsd } from "../lib/config";
 import { DISTRICT_PLACES, PLACES } from "../lib/plots";
-import { YOU, getCity, onCityEvent, useCity } from "../lib/store";
+import { getCity, onCityEvent, useCity } from "../lib/store";
 
 export default function MapView() {
   const host = useRef<HTMLDivElement>(null);
@@ -58,9 +58,20 @@ export default function MapView() {
     };
   }, []);
 
+  const shownMode = useRef(city.mode);
   useEffect(() => {
-    if (ready) sceneRef.current?.sync(city.buildings, true);
-  }, [city.buildings, ready]);
+    if (!ready) return;
+    const sc = sceneRef.current;
+    if (!sc) return;
+    if (shownMode.current !== city.mode) {
+      shownMode.current = city.mode;
+      sc.reset();
+      setSelected(null);
+      sc.sync(city.buildings, false);
+      return;
+    }
+    sc.sync(city.buildings, true);
+  }, [city.buildings, city.mode, ready]);
 
   const sel = selected ? city.buildings[selected - 1] : null;
   const d = sel ? DISTRICTS[sel.district] : null;
@@ -93,7 +104,7 @@ export default function MapView() {
             <span>Pending</span><b>${sel.pendingUsd.toFixed(2)}</b>
             <span>Invites</span><b>{sel.invites}{sel.invites >= 2 ? " 🎆" : ""}</b>
             <span>Plot</span><b>{d.city} #{sel.plot + 1}</b>
-            <span>Owner</span><b>{sel.owner === YOU ? "You" : sel.owner}</b>
+            <span>Owner</span><b>{sel.owner === city.me ? "You" : sel.owner.length > 20 ? `${sel.owner.slice(0, 6)}…${sel.owner.slice(-4)}` : sel.owner}</b>
           </div>
         </div>
       )}
